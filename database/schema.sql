@@ -487,8 +487,8 @@ CREATE POLICY "Users can update own profile"
     ON profiles FOR UPDATE
     USING (auth.uid() = id);
 
--- Profile is created via trigger on auth.users insert
-CREATE POLICY "Enable insert for authenticated users only"
+-- Users can only insert their own profile (trigger uses SECURITY DEFINER to bypass RLS)
+CREATE POLICY "Users can insert own profile"
     ON profiles FOR INSERT
     WITH CHECK (auth.uid() = id);
 
@@ -500,20 +500,6 @@ CREATE POLICY "Enable insert for authenticated users only"
 CREATE POLICY "Users can view own stories"
     ON stories FOR SELECT
     USING (auth.uid() = user_id);
-
--- Users can view shared stories
-CREATE POLICY "Users can view shared stories"
-    ON stories FOR SELECT
-    USING (
-        EXISTS (
-            SELECT 1 FROM story_shares
-            WHERE story_shares.story_id = stories.id
-            AND (
-                story_shares.shared_with_user_id = auth.uid()
-                OR story_shares.share_token IS NOT NULL
-            )
-        )
-    );
 
 -- Users can create their own stories
 CREATE POLICY "Users can create own stories"
@@ -531,34 +517,21 @@ CREATE POLICY "Users can delete own stories"
     USING (auth.uid() = user_id);
 
 -- ============================================================================
--- HELPER FUNCTION: Check story access
+-- HELPER FUNCTION: Check story ownership (bypasses RLS to prevent recursion)
 -- ============================================================================
 
-CREATE OR REPLACE FUNCTION user_has_story_access(story_uuid UUID, required_permission VARCHAR DEFAULT 'view')
-RETURNS BOOLEAN AS $$
-BEGIN
-    -- Owner always has access
-    IF EXISTS (SELECT 1 FROM stories WHERE id = story_uuid AND user_id = auth.uid()) THEN
-        RETURN TRUE;
-    END IF;
-    
-    -- Check shares
-    RETURN EXISTS (
-        SELECT 1 FROM story_shares
-        WHERE story_id = story_uuid
-        AND (
-            shared_with_user_id = auth.uid()
-            OR share_token IS NOT NULL
-        )
-        AND (
-            required_permission = 'view'
-            OR (required_permission = 'comment' AND permission_level IN ('comment', 'edit'))
-            OR (required_permission = 'edit' AND permission_level = 'edit')
-        )
-        AND (expires_at IS NULL OR expires_at > NOW())
+CREATE OR REPLACE FUNCTION user_owns_story(story_uuid UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+STABLE
+AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM stories 
+        WHERE id = story_uuid AND user_id = auth.uid()
     );
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- ============================================================================
 -- COMPONENTS POLICIES
@@ -566,13 +539,8 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 CREATE POLICY "Users can manage components in their stories"
     ON components FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM stories WHERE stories.id = components.story_id AND stories.user_id = auth.uid())
-    );
-
-CREATE POLICY "Users can view components in shared stories"
-    ON components FOR SELECT
-    USING (user_has_story_access(story_id, 'view'));
+    USING (user_owns_story(story_id))
+    WITH CHECK (user_owns_story(story_id));
 
 -- ============================================================================
 -- BOARD FOLDERS POLICIES
@@ -580,9 +548,8 @@ CREATE POLICY "Users can view components in shared stories"
 
 CREATE POLICY "Users can manage folders in their stories"
     ON board_folders FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM stories WHERE stories.id = board_folders.story_id AND stories.user_id = auth.uid())
-    );
+    USING (user_owns_story(story_id))
+    WITH CHECK (user_owns_story(story_id));
 
 -- ============================================================================
 -- BOARDS POLICIES
@@ -590,13 +557,8 @@ CREATE POLICY "Users can manage folders in their stories"
 
 CREATE POLICY "Users can manage boards in their stories"
     ON boards FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM stories WHERE stories.id = boards.story_id AND stories.user_id = auth.uid())
-    );
-
-CREATE POLICY "Users can view boards in shared stories"
-    ON boards FOR SELECT
-    USING (user_has_story_access(story_id, 'view'));
+    USING (user_owns_story(story_id))
+    WITH CHECK (user_owns_story(story_id));
 
 -- ============================================================================
 -- CONTAINERS POLICIES
@@ -604,13 +566,8 @@ CREATE POLICY "Users can view boards in shared stories"
 
 CREATE POLICY "Users can manage containers in their stories"
     ON containers FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM stories WHERE stories.id = containers.story_id AND stories.user_id = auth.uid())
-    );
-
-CREATE POLICY "Users can view containers in shared stories"
-    ON containers FOR SELECT
-    USING (user_has_story_access(story_id, 'view'));
+    USING (user_owns_story(story_id))
+    WITH CHECK (user_owns_story(story_id));
 
 -- ============================================================================
 -- NOTES POLICIES
@@ -621,18 +578,15 @@ CREATE POLICY "Users can manage notes in their boards"
     USING (
         EXISTS (
             SELECT 1 FROM boards
-            JOIN stories ON stories.id = boards.story_id
-            WHERE boards.id = notes.board_id AND stories.user_id = auth.uid()
+            WHERE boards.id = notes.board_id 
+            AND user_owns_story(boards.story_id)
         )
-    );
-
-CREATE POLICY "Users can view notes in shared boards"
-    ON notes FOR SELECT
-    USING (
+    )
+    WITH CHECK (
         EXISTS (
             SELECT 1 FROM boards
-            WHERE boards.id = notes.board_id
-            AND user_has_story_access(boards.story_id, 'view')
+            WHERE boards.id = notes.board_id 
+            AND user_owns_story(boards.story_id)
         )
     );
 
@@ -645,18 +599,15 @@ CREATE POLICY "Users can manage connections in their boards"
     USING (
         EXISTS (
             SELECT 1 FROM boards
-            JOIN stories ON stories.id = boards.story_id
-            WHERE boards.id = connections.board_id AND stories.user_id = auth.uid()
+            WHERE boards.id = connections.board_id 
+            AND user_owns_story(boards.story_id)
         )
-    );
-
-CREATE POLICY "Users can view connections in shared boards"
-    ON connections FOR SELECT
-    USING (
+    )
+    WITH CHECK (
         EXISTS (
             SELECT 1 FROM boards
-            WHERE boards.id = connections.board_id
-            AND user_has_story_access(boards.story_id, 'view')
+            WHERE boards.id = connections.board_id 
+            AND user_owns_story(boards.story_id)
         )
     );
 
@@ -669,9 +620,15 @@ CREATE POLICY "Users can manage component references in their stories"
     USING (
         EXISTS (
             SELECT 1 FROM components
-            JOIN stories ON stories.id = components.story_id
             WHERE components.id = component_references.component_id
-            AND stories.user_id = auth.uid()
+            AND user_owns_story(components.story_id)
+        )
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM components
+            WHERE components.id = component_references.component_id
+            AND user_owns_story(components.story_id)
         )
     );
 
@@ -681,9 +638,8 @@ CREATE POLICY "Users can manage component references in their stories"
 
 CREATE POLICY "Story owners can manage shares"
     ON story_shares FOR ALL
-    USING (
-        EXISTS (SELECT 1 FROM stories WHERE stories.id = story_shares.story_id AND stories.user_id = auth.uid())
-    );
+    USING (user_owns_story(story_id))
+    WITH CHECK (user_owns_story(story_id));
 
 CREATE POLICY "Users can view shares they have access to"
     ON story_shares FOR SELECT
@@ -697,9 +653,10 @@ CREATE POLICY "Users can view version history of their content"
     ON version_history FOR SELECT
     USING (changed_by = auth.uid());
 
-CREATE POLICY "System can insert version history"
+-- Only allow inserts via triggers/functions (not direct client access)
+CREATE POLICY "Authenticated users can insert version history for their content"
     ON version_history FOR INSERT
-    WITH CHECK (TRUE); -- Controlled by triggers
+    WITH CHECK (changed_by = auth.uid());
 
 -- ============================================================================
 -- TRIGGERS
@@ -756,19 +713,32 @@ CREATE TRIGGER update_story_shares_updated_at
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public  -- Security: prevent search path injection
+AS $$
 BEGIN
-    INSERT INTO profiles (id, display_name, dicebear_seed)
+    INSERT INTO public.profiles (id, display_name, dicebear_seed)
     VALUES (
         NEW.id,
-        COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
-        encode(sha256(NEW.email::bytea), 'hex')
+        COALESCE(
+            NEW.raw_user_meta_data->>'display_name',
+            COALESCE(NEW.raw_user_meta_data->>'name', split_part(NEW.email::text, '@', 1))
+        ),
+        NEW.id::text  -- Use user ID as dicebear seed (guaranteed unique)
     );
     RETURN NEW;
+EXCEPTION
+    WHEN others THEN
+        -- Log error but don't fail user creation
+        RAISE WARNING 'Failed to create profile for user %: %', NEW.id, SQLERRM;
+        RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger to create profile when user signs up
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION handle_new_user();
@@ -778,7 +748,11 @@ CREATE TRIGGER on_auth_user_created
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION cleanup_old_versions()
-RETURNS void AS $$
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
     -- Keep only last 30 days of history
     DELETE FROM version_history
@@ -794,7 +768,7 @@ BEGIN
         LIMIT 100
     );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
 -- ============================================================================
 -- STORAGE BUCKET CONFIGURATION (for Supabase Storage)
@@ -811,11 +785,15 @@ $$ LANGUAGE plpgsql;
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('attachments', 'attachments', false);
 
 -- ============================================================================
--- STORAGE POLICIES (uncomment and run in Supabase)
+-- STORAGE POLICIES
 -- ============================================================================
+-- NOTE: Run these AFTER creating buckets in Supabase Dashboard:
+--   1. Create bucket 'avatars' (public: true)
+--   2. Create bucket 'thumbnails' (public: true)  
+--   3. Create bucket 'attachments' (public: false)
+-- Then run these policies:
 
-/*
--- Avatar upload policy
+-- AVATARS BUCKET POLICIES
 CREATE POLICY "Users can upload their own avatar"
 ON storage.objects FOR INSERT
 WITH CHECK (
@@ -823,12 +801,10 @@ WITH CHECK (
     AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- Avatar public read
 CREATE POLICY "Avatars are publicly accessible"
 ON storage.objects FOR SELECT
 USING (bucket_id = 'avatars');
 
--- Users can update their avatar
 CREATE POLICY "Users can update their own avatar"
 ON storage.objects FOR UPDATE
 USING (
@@ -836,14 +812,60 @@ USING (
     AND auth.uid()::text = (storage.foldername(name))[1]
 );
 
--- Users can delete their avatar
 CREATE POLICY "Users can delete their own avatar"
 ON storage.objects FOR DELETE
 USING (
     bucket_id = 'avatars'
     AND auth.uid()::text = (storage.foldername(name))[1]
 );
-*/
+
+-- THUMBNAILS BUCKET POLICIES
+CREATE POLICY "Users can upload thumbnails for their stories"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'thumbnails'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Thumbnails are publicly accessible"
+ON storage.objects FOR SELECT
+USING (bucket_id = 'thumbnails');
+
+CREATE POLICY "Users can update their thumbnails"
+ON storage.objects FOR UPDATE
+USING (
+    bucket_id = 'thumbnails'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their thumbnails"
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'thumbnails'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+-- ATTACHMENTS BUCKET POLICIES (private)
+CREATE POLICY "Users can upload attachments"
+ON storage.objects FOR INSERT
+WITH CHECK (
+    bucket_id = 'attachments'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can view their own attachments"
+ON storage.objects FOR SELECT
+USING (
+    bucket_id = 'attachments'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
+
+CREATE POLICY "Users can delete their own attachments"
+ON storage.objects FOR DELETE
+USING (
+    bucket_id = 'attachments'
+    AND auth.uid()::text = (storage.foldername(name))[1]
+);
 
 -- ============================================================================
 -- INDEXES FOR FULL-TEXT SEARCH

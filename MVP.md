@@ -341,65 +341,287 @@ docs(api): update authentication endpoints
 
 ## 5. MVP Milestones
 
-### Phase 1: Foundation (Week 1-2)
+### Phase 1: Project Setup (Week 1)
 
-- [ ] Project setup (Next.js, Tailwind, shadcn/ui)
-- [ ] Supabase integration
-- [ ] Authentication (email/password)
-- [ ] Google OAuth
-- [ ] User profile (display name, avatar)
-- [ ] Basic routing & layouts
+**1.1 Initialize Project**
+- [ ] Create Next.js 14 project with TypeScript
+- [ ] Configure Tailwind CSS
+- [ ] Install and configure shadcn/ui
+- [ ] Set up ESLint + Prettier
+- [ ] Configure Husky + lint-staged
+- [ ] Create folder structure
 
-### Phase 2: Story Management (Week 3)
+**1.2 Supabase Setup**
+- [ ] Create Supabase project
+- [ ] Run database schema
+- [ ] Create storage buckets (avatars, thumbnails)
+- [ ] Install @supabase/supabase-js and @supabase/ssr
+- [ ] Create Supabase client utilities
 
-- [ ] Create story
-- [ ] List user's stories
-- [ ] Rename story
-- [ ] Delete story
-- [ ] Story dashboard UI
+---
 
-### Phase 3: Board Canvas (Week 4-5)
+### Phase 2: Authentication (Week 2)
 
-- [ ] Canvas component with React Flow
-- [ ] Pan & zoom controls
-- [ ] Minimap
-- [ ] Grid background
-- [ ] Toolbar UI
+**2.1 Auth Pages**
+- [ ] Create `/login` page layout
+- [ ] Create `/register` page layout
+- [ ] Build LoginForm component
+- [ ] Build RegisterForm component
+- [ ] Add form validation (Zod + React Hook Form)
 
-### Phase 4: Notes (Week 6-7)
+**2.2 Auth Logic**
+- [ ] Implement email/password signup
+- [ ] Implement email/password login
+- [ ] Implement logout
+- [ ] Add Google OAuth button
+- [ ] Configure OAuth callback route
+- [ ] Create auth middleware (protect routes)
 
-- [ ] Create note (double-click)
-- [ ] Edit note content (rich text)
-- [ ] Move note (drag & drop)
-- [ ] Resize note
-- [ ] Delete note
-- [ ] Note styling (colors)
-- [ ] Auto-save to database
+**2.3 Session Management**
+- [ ] Set up auth state listener
+- [ ] Create useUser hook
+- [ ] Handle auth redirects
+- [ ] Add loading states
 
-### Phase 5: Connections (Week 8)
+---
 
-- [ ] Create connection (drag from anchor)
-- [ ] Connection routing
-- [ ] Connection labels
-- [ ] Connection styling
+### Phase 3: User Profile (Week 3)
+
+**3.1 Profile Setup**
+- [ ] Create profile on signup (trigger)
+- [ ] Build ProfileForm component
+- [ ] Implement display name update
+- [ ] Add bio field
+
+**3.2 Avatar System**
+- [ ] Integrate DiceBear library
+- [ ] Build AvatarPicker component
+- [ ] Style selector (8-10 styles)
+- [ ] Generate random seed
+- [ ] Save avatar preferences to DB
+
+**3.3 Custom Avatar Upload**
+- [ ] Create avatar upload component
+- [ ] Implement file validation (size, type)
+- [ ] Upload to Supabase Storage
+- [ ] Update profile with avatar URL
+
+---
+
+### Phase 4: Story Management (Week 4)
+
+**4.1 Story CRUD**
+- [ ] Create story API/mutation
+- [ ] Implement createStory function
+- [ ] Implement updateStory function
+- [ ] Implement deleteStory function
+- [ ] Add confirmation dialog for delete
+
+**4.2 Dashboard UI**
+- [ ] Build `/stories` page
+- [ ] Create StoryCard component
+- [ ] Build StoryGrid/StoryList view
+- [ ] Add "New Story" button + modal
+- [ ] Implement story rename inline edit
+- [ ] Add empty state
+
+**4.3 Story Features**
+- [ ] Add favorite toggle
+- [ ] Add archive functionality
+- [ ] Implement search/filter
+- [ ] Add sort options (recent, name, created)
+
+---
+
+### Phase 5: Canvas Foundation (Week 5)
+
+**5.1 React Flow Setup**
+- [ ] Install reactflow
+- [ ] Create Canvas wrapper component
+- [ ] Configure React Flow provider
+- [ ] Set up custom node types
+- [ ] Set up custom edge types
+
+**5.2 Canvas Controls**
+- [ ] Implement pan (drag background)
+- [ ] Implement zoom (scroll wheel)
+- [ ] Add zoom controls UI (+/- buttons)
+- [ ] Add fit-to-screen button
+- [ ] Save viewport position to DB
+
+**5.3 Canvas UI**
+- [ ] Add grid background (dots/lines)
+- [ ] Create Minimap component
+- [ ] Build Toolbar component
+- [ ] Add keyboard shortcuts (Ctrl+0 reset zoom)
+
+---
+
+### Phase 6: Notes - Basic (Week 6)
+
+**6.1 Note Node Component**
+- [ ] Create NoteNode component
+- [ ] Style note card (rounded, shadow)
+- [ ] Add color variants
+- [ ] Implement selected state
+- [ ] Add drag handle
+
+**6.2 Note CRUD**
+- [ ] Double-click to create note
+- [ ] Create note in database
+- [ ] Delete note (keyboard + context menu)
+- [ ] Handle optimistic updates
+
+**6.3 Note Positioning**
+- [ ] Implement drag & drop
+- [ ] Snap to grid (optional)
+- [ ] Save position on drag end
+- [ ] Debounce position updates
+
+---
+
+### Phase 7: Notes - Editing (Week 7)
+
+**7.1 Rich Text Editor**
+- [ ] Install TipTap or similar
+- [ ] Create NoteEditor component
+- [ ] Basic formatting (bold, italic, lists)
+- [ ] Handle focus/blur states
+
+**7.2 Note Content**
+- [ ] Double-click note to edit
+- [ ] Save content on blur
+- [ ] Auto-save while typing (debounced)
+- [ ] Handle empty notes
+
+**7.3 Note Sizing**
+- [ ] Add resize handles
+- [ ] Implement resize logic
+- [ ] Set min/max dimensions
+- [ ] Save size to database
+
+**7.4 Note Styling**
+- [ ] Build ColorPicker component
+- [ ] Apply color to note
+- [ ] Add note title field
+- [ ] Collapsed/expanded state
+
+---
+
+### Phase 8: Connections (Week 8)
+
+**8.1 Connection Creation**
+- [ ] Add anchor points to notes (4 sides)
+- [ ] Drag from anchor to create edge
+- [ ] Connect to target anchor
+- [ ] Save connection to database
+
+**8.2 Edge Component**
+- [ ] Create custom Edge component
+- [ ] Add arrow head
+- [ ] Support curved/straight/orthogonal
+- [ ] Implement edge selection
+
+**8.3 Connection Features**
+- [ ] Add connection labels
+- [ ] Implement label editing
+- [ ] Add color picker for edges
+- [ ] Line style (solid, dashed, dotted)
 - [ ] Delete connection
 
-### Phase 6: Components (Week 9-10)
+---
 
-- [ ] Component CRUD
-- [ ] Component Panel UI
-- [ ] @ reference autocomplete
-- [ ] Component display in notes
-- [ ] Reference tracking
+### Phase 9: Components System (Week 9)
 
-### Phase 7: Polish & Deploy (Week 11-12)
+**9.1 Component Panel**
+- [ ] Create floating ComponentPanel
+- [ ] Toggle panel visibility
+- [ ] List all story components
+- [ ] Component search/filter
 
-- [ ] Error handling & loading states
-- [ ] Responsive design fixes
-- [ ] Performance optimization
-- [ ] E2E tests
-- [ ] Deploy to Vercel
-- [ ] Documentation
+**9.2 Component CRUD**
+- [ ] Create component form
+- [ ] Support types: number, string, boolean
+- [ ] Edit component (name, default value)
+- [ ] Delete component
+- [ ] Prevent duplicate names
+
+**9.3 Component Display**
+- [ ] Show component name
+- [ ] Show current value
+- [ ] Color tag indicator
+- [ ] Sort/organize components
+
+---
+
+### Phase 10: @ References (Week 10)
+
+**10.1 Autocomplete**
+- [ ] Detect @ trigger in editor
+- [ ] Show component dropdown
+- [ ] Filter by typed text
+- [ ] Insert component reference
+
+**10.2 Reference Display**
+- [ ] Style inline references (chip/badge)
+- [ ] Show component name
+- [ ] Click to view component
+- [ ] Handle deleted components
+
+**10.3 Reference Tracking**
+- [ ] Create component_references entries
+- [ ] Update on note save
+- [ ] Clean up stale references
+- [ ] Show "used in X notes" count
+
+---
+
+### Phase 11: Auto-save & State (Week 11)
+
+**11.1 State Management**
+- [ ] Set up Zustand boardStore
+- [ ] Sync React Flow state with store
+- [ ] Handle undo/redo (optional)
+
+**11.2 Auto-save**
+- [ ] Debounced save (2s delay)
+- [ ] Show saving indicator
+- [ ] Handle save errors
+- [ ] Conflict resolution (last-write-wins)
+
+**11.3 Data Loading**
+- [ ] Fetch board data on mount
+- [ ] Load notes and connections
+- [ ] Load components
+- [ ] Show loading skeleton
+
+---
+
+### Phase 12: Polish & Deploy (Week 12)
+
+**12.1 Error Handling**
+- [ ] Global error boundary
+- [ ] Toast notifications
+- [ ] Form error messages
+- [ ] Network error handling
+
+**12.2 Loading States**
+- [ ] Page loading skeletons
+- [ ] Button loading spinners
+- [ ] Optimistic UI updates
+
+**12.3 Testing**
+- [ ] Unit tests (Vitest)
+- [ ] E2E tests (Playwright)
+- [ ] Test auth flows
+- [ ] Test board operations
+
+**12.4 Deployment**
+- [ ] Configure Vercel project
+- [ ] Set environment variables
+- [ ] Deploy to production
+- [ ] Test production build
+- [ ] Set up error monitoring (optional)
 
 ---
 
